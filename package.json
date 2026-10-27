@@ -1,0 +1,22 @@
+{
+  "name": "pi-encrypted-reasoning-recovery",
+  "version": "0.1.0",
+  "description": "Recover Pi sessions from invalid encrypted reasoning content errors",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jiang-Ciel/pi-encrypted-reasoning-recovery.git"
+  },
+  "bugs": "https://github.com/Jiang-Ciel/pi-encrypted-reasoning-recovery/issues",
+  "keywords": ["pi-package", "pi-extension", "openai-responses", "reasoning"],
+  "pi": {
+    "extensions": ["./extensions/recovery.js"]
+  },
+  "files": ["extensions", "README.md"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
