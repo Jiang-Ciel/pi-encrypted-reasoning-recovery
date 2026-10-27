@@ -4,14 +4,16 @@ A small Pi extension for sessions that fail with `invalid_encrypted_content` whe
 
 ## Install
 
-```sh
-pi install npm:pi-encrypted-reasoning-recovery
-```
-
-Or install from GitHub:
+Install from GitHub now:
 
 ```sh
 pi install git:github.com/Jiang-Ciel/pi-encrypted-reasoning-recovery
+```
+
+The npm package is prepared but awaits its first registry publish. After it is published, this command will also work:
+
+```sh
+pi install npm:pi-encrypted-reasoning-recovery
 ```
 
 Restart Pi after installation. If you already have a manually installed copy of this extension in `~/.pi/agent/extensions/`, remove or disable it before installing this package to avoid two context handlers running together. Check installation with `pi list`.
