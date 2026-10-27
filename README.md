@@ -26,9 +26,9 @@ By default, the extension handles only the `my_model_hub` provider using Pi's `o
 PI_REASONING_RECOVERY_PROVIDERS=my_model_hub,other_gateway pi --session SESSION_ID
 ```
 
-The extension activates only when the current session contains an assistant error with `invalid_encrypted_content` and an `rs_...` item ID for the selected provider. Subsequent model requests omit encrypted reasoning blocks from that provider's assistant history, but retain text and tool calls. This affects only the request context: it never edits session files or decrypts/replaces encrypted content.
+The extension activates when the current branch has an assistant error reporting an `rs_...` encrypted item for the selected provider (including errors whose gateway wrapper omits `invalid_encrypted_content`). Subsequent model requests omit encrypted reasoning blocks from that provider's assistant history, but retain text and tool calls. The branch check also works when compaction hides the error from request context. This affects only the request context: it never edits session files or decrypts/replaces encrypted content.
 
-This does not retry the failed request automatically. Continue the session or send another prompt after installing and restarting Pi. Dropping old reasoning may reduce continuity; it cannot fix server-side key or routing problems, nor guarantee that other malformed requests succeed.
+After an eligible failed run settles, the extension attempts **one** automatic continuation. It will not retry indefinitely; if the gateway rejects the new request too, a provider-side key or routing problem may need investigation. Reload an already-running Pi with `/reload` after updating the extension; a full restart is not required just to load the new code. Dropping old reasoning may reduce continuity and does not guarantee that other malformed requests succeed.
 
 ## Development
 

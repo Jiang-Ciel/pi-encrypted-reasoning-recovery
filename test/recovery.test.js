@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import recoveryExtension, { recoverReasoningContext } from "../extensions/recovery.js";
+import recoveryExtension, { recoverReasoningContext, planRecoveryRetry } from "../extensions/recovery.js";
 
 const model = { provider: "my_model_hub", api: "openai-responses" };
 const reasoning = (id) => ({ type: "thinking", thinkingSignature: JSON.stringify({ type: "reasoning", id, encrypted_content: "ciphertext" }) });
@@ -29,7 +29,7 @@ test("quarantines encrypted reasoning after an error without modifying the sessi
 test("does not change context for unrelated errors or providers", () => {
 	const messages = [{ role: "assistant", provider: model.provider, api: model.api, content: [reasoning("rs_bad")] }, failure("rs_bad")];
 	assert.equal(recoverReasoningContext(messages, { provider: "other", api: model.api }), messages);
-	const unrelated = [messages[0], failure("rs_bad", "other_error")];
+	const unrelated = [messages[0], { ...failure("rs_bad", "other_error"), errorMessage: "rate limit exceeded" }];
 	assert.equal(recoverReasoningContext(unrelated, model), unrelated);
 });
 
@@ -51,9 +51,37 @@ test("quarantines remaining encrypted blocks after compaction removed the reject
 	assert.deepEqual(recoverReasoningContext(messages, model)[1].content, [kept.content[1]]);
 });
 
-test("registers a request-local context hook", () => {
-	let handler;
-	recoveryExtension({ on(event, callback) { assert.equal(event, "context"); handler = callback; } });
+test("recovers when compaction hides the rejected error from request context", () => {
+	const signed = { role: "assistant", provider: model.provider, api: model.api, content: [reasoning("rs_bad"), { type: "text", text: "keep" }] };
+	const messages = [signed, { role: "user", content: [{ type: "text", text: "continue" }] }];
+	const branch = [{ type: "message", message: failure("rs_bad") }, { type: "compaction", summary: "prior work" }];
+	assert.deepEqual(recoverReasoningContext(messages, model, new Set([model.provider]), branch)[0].content, [signed.content[1]]);
+	assert.equal(recoverReasoningContext(messages, model), messages);
+});
+
+test("recognizes gateway error without an upstream code and discards malformed signed thinking", () => {
+	const bad = { role: "assistant", provider: model.provider, api: model.api, content: [{ type: "thinking", thinkingSignature: "not-json" }, reasoning("rs_bad")] };
+	const error = { ...failure("rs_bad"), errorMessage: "The encrypted content for item rs_bad could not be verified. Reason: Encrypted content could not be decrypted or parsed." };
+	assert.deepEqual(recoverReasoningContext([bad, error], model), [error]);
+});
+
+test("retries a failed request once, without retrying unrelated or prior failures", () => {
+	const error = failure("rs_bad");
+	const branch = [{ type: "message", message: { role: "user" } }, { type: "message", message: error }];
+	const event = { outcome: "error", continue: false, entries: [], context: { contextMessages: [error] } };
+	const retry = planRecoveryRetry(event, model, branch);
+	assert.equal(retry.continue, true);
+	assert.equal(retry.entries[0].customType, "encrypted-reasoning-recovery-retry");
+	assert.equal(planRecoveryRetry(event, model, [...branch, retry.entries[0]]), undefined);
+	assert.equal(planRecoveryRetry({ ...event, outcome: "aborted" }, model, branch), undefined);
+	assert.equal(planRecoveryRetry(event, model, [...branch, { type: "message", message: { role: "user" } }]), undefined);
+});
+
+test("registers request-local context and boundary hooks", () => {
+	const handlers = {};
+	recoveryExtension({ on(event, callback) { handlers[event] = callback; } });
 	const messages = [{ role: "user", content: [{ type: "text", text: "hello" }] }];
-	assert.equal(handler({ messages }, { model }), undefined);
+	const ctx = { model, sessionManager: { getBranch: () => [] } };
+	assert.equal(handlers.context({ messages }, ctx), undefined);
+	assert.equal(handlers.agent_before_settle({ outcome: "completed", continue: false }, ctx), undefined);
 });
