@@ -18,6 +18,29 @@ pi install npm:pi-encrypted-reasoning-recovery
 
 Restart Pi after installation. If you already have a manually installed copy of this extension in `~/.pi/agent/extensions/`, remove or disable it before installing this package to avoid two context handlers running together. Check installation with `pi list`.
 
+## TPM / quota interval recovery
+
+On Pi 1.4.0+, this extension also retries TPM, PTU throughput, rate-limit,
+`insufficient_quota`, and quota-exhaustion errors in the **same session**.
+It runs after Pi's built-in recovery declines or exhausts its retries.
+
+- Default: wait **60 seconds**, up to **5 extension retries per user turn**.
+- `PI_LIMIT_RETRY_INTERVAL_MS=120000` changes the fixed interval to 2 minutes.
+- `PI_LIMIT_RETRY_MAX_RETRIES=0` disables this recovery; valid range is 0–100.
+- `PI_REASONING_RECOVERY_PROVIDERS` scopes both recoveries (default `my_model_hub`).
+- Waiting uses the active provider AbortSignal: Escape / RPC abort cancels it.
+- Successful conversation and tool results are retained; only the failed assistant
+  attempt is omitted from model context using a durable context edit. Retry
+  counters are session custom entries, not extra instructions sent to the model.
+- Failed attempts containing tool calls are not retried by this extension, to
+  avoid discarding tool results or duplicating executed work.
+- Billing, payment, balance, and authentication failures are excluded. A real
+  hard quota will not recover merely by waiting; retries stop at the configured
+  bound. Pi's own/provider retries can add attempts between extension retries.
+
+Reload Pi with `/reload` after updating. Environment changes require launching
+Pi with the new variables. No session reset or context compaction is required.
+
 ## Configuration
 
 By default, the extension handles only the `my_model_hub` provider using Pi's `openai-responses` API. To opt in other provider names, set `PI_REASONING_RECOVERY_PROVIDERS` to a comma-separated list **before** starting Pi:
